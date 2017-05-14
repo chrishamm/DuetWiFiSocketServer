@@ -491,7 +491,6 @@ void ProcessRequest()
 				{
 					lastError = "Listen failed";
 					debugPrintln("Listen failed");
-
 				}
 			}
 			break;
