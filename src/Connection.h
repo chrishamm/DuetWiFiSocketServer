@@ -68,6 +68,7 @@ private:
 	uint16_t remotePort;
 
 	uint32_t remoteIp;
+	uint32_t writeTimer;
 	uint32_t closeTimer;
 	volatile size_t unAcked;	// how much data we have sent but hasn't been acknowledged
 	size_t readIndex;			// how much data we have already read from the current pbuf

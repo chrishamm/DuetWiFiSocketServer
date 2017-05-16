@@ -14,7 +14,6 @@
 #include <ESP8266mDNS.h>
 #include <DNSServer.h>
 #include <EEPROM.h>
-#include <ESP8266SSDP.h>
 #include "SocketServer.h"
 #include "Config.h"
 #include "PooledStrings.h"
@@ -27,11 +26,14 @@
 extern "C"
 {
 	#include "user_interface.h"     // for struct rst_info
+	#include "lwip/stats.h"			// for stats_display()
+
+	#include "lwip/app/netbios.h"	// for NetBIOS support
 }
 
 #define array _ecv_array
 
-const uint32_t MaxConnectTime = 30 * 1000;		// how long we wait for wifi to connect ni milliseconds
+const uint32_t MaxConnectTime = 30 * 1000;		// how long we wait for WiFi to connect in milliseconds
 
 const int DefaultWiFiChannel = 6;
 
@@ -40,7 +42,7 @@ char currentSsid[SsidLength + 1];
 char webHostName[HostNameLength + 1] = "Duet-WiFi";
 
 DNSServer dns;
-MDNSResponder mdns;
+
 
 const char* lastError = nullptr;
 const char* prevLastError = nullptr;
@@ -138,10 +140,6 @@ void ConnectPoll()
 		if (WiFi.status() == WL_CONNECTED)
 		{
 			currentState = WiFiState::connected;
-			if (mdns.begin(webHostName, WiFi.localIP()))
-			{
-				MDNS.addService("http", "tcp", 80);
-			}
 			digitalWrite(EspReqTransferPin, LOW);				// force a status update when complete
 			debugPrintln("Connected to AP");
 		}
@@ -155,7 +153,7 @@ void ConnectPoll()
 			strcpy(lastConnectError, "failed to connect to access point ");
 			strncat(lastConnectError, currentSsid, ARRAY_SIZE(lastConnectError) - strlen(lastConnectError) - 1);
 			digitalWrite(EspReqTransferPin, LOW);				// force a status update when complete
-			debugPrintln("Connection timepout");
+			debugPrintln("Connection timeout");
 		}
 	}
 }
@@ -263,6 +261,43 @@ static union
 	MessageHeaderEspToSam hdr;
 	uint32_t asDwords[headerDwords];	// to force alignment
 } messageHeaderOut;
+
+// Rebuild the mDNS services
+void RebuildServices()
+{
+	MDNS.deleteServices();
+
+	// Unfortunately the official ESP8266 mDNS library only reports one service.
+	// I (chrishamm) tried to use the old mDNS responder, which is also capable of sending
+	// mDNS broadcasts, but the packets it generates are broken and thus not of use.
+	const uint16_t httpPort = Listener::GetPortByProtocol(0);
+	if (httpPort != 0)
+	{
+		MDNS.addService("http", "tcp", httpPort);
+		MDNS.addServiceTxt("http", "tcp", "product", "DuetWiFi");
+		MDNS.addServiceTxt("http", "tcp", "version", firmwareVersion);
+	}
+	else
+	{
+		const uint16_t ftpPort = Listener::GetPortByProtocol(1);
+		if (ftpPort != 0)
+		{
+			MDNS.addService("ftp", "tcp", ftpPort);
+			MDNS.addServiceTxt("ftp", "tcp", "product", "DuetWiFi");
+			MDNS.addServiceTxt("ftp", "tcp", "version", firmwareVersion);
+		}
+		else
+		{
+			const uint16_t telnetPort = Listener::GetPortByProtocol(2);
+			if (telnetPort != 0)
+			{
+				MDNS.addService("telnet", "tcp", telnetPort);
+				MDNS.addServiceTxt("telnet", "tcp", "product", "DuetWiFi");
+				MDNS.addServiceTxt("telnet", "tcp", "version", firmwareVersion);
+			}
+		}
+	}
+}
 
 // Send a response.
 // 'response' is the number of byes of response if positive, or the error code if negative.
@@ -447,6 +482,9 @@ void ProcessRequest()
 				hspi.transferDwords(nullptr, transferBuffer, NumDwords(HostNameLength));
 				memcpy(webHostName, transferBuffer, HostNameLength);
 				webHostName[HostNameLength] = 0;			// ensure null terminator
+
+				// The following can be called multiple times
+				MDNS.begin(webHostName);
 			}
 			else
 			{
@@ -481,7 +519,7 @@ void ProcessRequest()
 				messageHeaderIn.hdr.param32 = hspi.transfer32(ResponseEmpty);
 				ListenOrConnectData lcData;
 				hspi.transferDwords(nullptr, reinterpret_cast<uint32_t*>(&lcData), NumDwords(sizeof(lcData)));
-				const bool ok = Listener::Listen(lcData.remoteIp, lcData.port, lcData.maxConnections);
+				const bool ok = Listener::Listen(lcData.remoteIp, lcData.port, lcData.protocol, lcData.maxConnections);
 				if (ok)
 				{
 					debugPrint("Listening on port ");
@@ -492,6 +530,7 @@ void ProcessRequest()
 					lastError = "Listen failed";
 					debugPrintln("Listen failed");
 				}
+				RebuildServices();
 			}
 			break;
 
@@ -571,6 +610,11 @@ void ProcessRequest()
 			}
 			break;
 
+		case NetworkCommand::diagnostics:				// print some debug info over the UART line
+			stats_display();
+			SendResponse(ResponseEmpty);
+			break;
+
 		case NetworkCommand::connCreate:				// create a connection
 		default:
 			SendResponse(ResponseUnknownCommand);
@@ -620,6 +664,7 @@ void setup()
 {
 	// Enable serial port for debugging
 	Serial.begin(115200);
+	Serial.setDebugOutput(true);
 	delay(20);
 
 	// Reserve some flash space for use as EEPROM. The maximum EEPROM supported by the core is API_FLASH_SEC_SIZE (4Kb).
@@ -643,6 +688,7 @@ void setup()
 
     Connection::Init();
     Listener::Init();
+    netbios_init();
     lastError = nullptr;
     debugPrintln("Init completed");
 }

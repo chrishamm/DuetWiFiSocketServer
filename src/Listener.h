@@ -23,8 +23,9 @@ public:
 	err_t Accept(tcp_pcb *pcb);
 
 	static void Init() { }
-	static bool Listen(uint32_t ip, uint16_t port, uint16_t maxConns);
+	static bool Listen(uint32_t ip, uint16_t port, uint8_t protocol, uint16_t maxConns);
 	static void StopListening(uint16_t port);
+	static uint16_t GetPortByProtocol(uint8_t protocol);
 
 private:
 	void Stop();
@@ -37,6 +38,7 @@ private:
 	tcp_pcb *listeningPcb;
 	uint32_t ip;
 	uint16_t port;
+	uint8_t protocol;
 	uint16_t maxConnections;
 
 	static Listener *activeList;

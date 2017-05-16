@@ -47,7 +47,7 @@ extern "C"
 
 // Public interface
 Connection::Connection(uint8_t num)
-	: number(num), state(ConnState::free), localPort(0), remotePort(0), remoteIp(0), closeTimer(0),
+	: number(num), state(ConnState::free), localPort(0), remotePort(0), remoteIp(0), writeTimer(0), closeTimer(0),
 	  unAcked(0), readIndex(0), alreadyRead(0), ownPcb(nullptr), pb(nullptr)
 {
 }
@@ -57,7 +57,6 @@ void Connection::GetStatus(ConnStatusResponse& resp) const
 	resp.socketNumber = number;
 	resp.state = state;
 	resp.bytesAvailable = CanRead();
-	resp.writeBufferSpace = CanWrite();
 	resp.localPort = localPort;
 	resp.remotePort = remotePort;
 	resp.remoteIp = remoteIp;
@@ -130,7 +129,16 @@ void Connection::Terminate()
 // Perform housekeeping tasks
 void Connection::Poll()
 {
-	if (state == ConnState::closeReady)
+	if (state == ConnState::connected)
+	{
+		// Are we still waiting for data to be written?
+		if (writeTimer > 0 && millis() - writeTimer >= MaxWriteTime)
+		{
+			// Terminate it
+			Terminate();
+		}
+	}
+	else if (state == ConnState::closeReady)
 	{
 		// Deferred close, possibly outside the ISR
 		Close();
@@ -154,41 +162,31 @@ void Connection::Poll()
 // Write data to the connection. The amount of data may be zero.
 size_t Connection::Write(const uint8_t *data, size_t length, bool doPush, bool closeAfterSending)
 {
-	if (state != ConnState::connected)
+	// Can we write anything at all?
+	if (CanWrite() == 0)
 	{
+		if (writeTimer == 0)
+		{
+			// No - there is no space left. Don't wait forever until there is any available
+			writeTimer = millis();
+		}
 		return 0;
 	}
-	const bool push = doPush || closeAfterSending;
 
 	// Send one SPI packet at once
-	err_t result = ERR_MEM;
-	const uint32_t writeStartTime = millis();
-	do
+	const bool push = doPush || closeAfterSending;
+	err_t result = tcp_write(ownPcb, data, length, push ? TCP_WRITE_FLAG_COPY : TCP_WRITE_FLAG_COPY | TCP_WRITE_FLAG_MORE);
+	if (result == ERR_OK)
 	{
-		if (result == ERR_MEM)
-		{
-			// No data has been sent yet, try to do it now
-			result = tcp_write(ownPcb, data, length, push ? TCP_WRITE_FLAG_COPY : TCP_WRITE_FLAG_COPY | TCP_WRITE_FLAG_MORE);
-		}
-
-		if (result == ERR_OK)
-		{
-			// Data could be written successfully
-			unAcked += length;
-			break;
-		}
-		else if (result == ERR_MEM)
-		{
-			// Not enough memory for sending. Wait a bit longer
-			delay(5);
-		}
-		else if (ERR_IS_FATAL(result))
-		{
-			// Something went really wrong. Let the main firmware terminate this connection
-			return 0;
-		}
+		// Data could be successfully written
+		writeTimer = 0;
+		unAcked += length;
 	}
-	while (state == ConnState::connected && millis() - writeStartTime < MaxWriteTime);
+	else
+	{
+		// Something went wrong. Let the main firmware deal with this
+		return 0;
+	}
 
 	// See if we need to push the remaining data
 	if (push || tcp_sndbuf(ownPcb) <= TCP_SNDLOWAT)
@@ -207,11 +205,8 @@ size_t Connection::Write(const uint8_t *data, size_t length, bool doPush, bool c
 
 size_t Connection::CanWrite() const
 {
-	if (state != ConnState::connected)
-	{
-		return 0;
-	}
-	return tcp_sndbuf(ownPcb);		// return the amount of free space in the write buffer
+	// Return the amount of free space in the write buffer
+	return (state == ConnState::connected) ? tcp_sndbuf(ownPcb) : 0;
 }
 
 size_t Connection::Read(uint8_t *data, size_t length)
@@ -309,6 +304,7 @@ err_t Connection::Accept(tcp_pcb *pcb)
 	localPort = pcb->local_port;
 	remotePort = pcb->remote_port;
 	remoteIp = pcb->remote_ip.addr;
+	writeTimer = closeTimer = 0;
 	unAcked = readIndex = alreadyRead = 0;
 
 	return ERR_OK;
