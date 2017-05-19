@@ -50,6 +50,7 @@ err_t Listener::Accept(tcp_pcb *pcb)
 			}
 		}
 	}
+	tcp_abort(pcb);
 	return ERR_ABRT;
 }
 
