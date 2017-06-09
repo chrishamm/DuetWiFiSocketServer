@@ -27,7 +27,6 @@ extern "C"
 {
 	#include "user_interface.h"     // for struct rst_info
 	#include "lwip/stats.h"			// for stats_display()
-
 	#include "lwip/app/netbios.h"	// for NetBIOS support
 }
 
@@ -42,7 +41,6 @@ char currentSsid[SsidLength + 1];
 char webHostName[HostNameLength + 1] = "Duet-WiFi";
 
 DNSServer dns;
-
 
 const char* lastError = nullptr;
 const char* prevLastError = nullptr;
@@ -562,7 +560,7 @@ void ProcessRequest()
 			if (ValidSocketNumber(messageHeaderIn.hdr.socketNumber))
 			{
 				Connection& conn = Connection::Get(messageHeaderIn.hdr.socketNumber);
-				const size_t amount = conn.Read(reinterpret_cast<uint8_t *>(transferBuffer), messageHeaderIn.hdr.dataBufferAvailable);
+				const size_t amount = conn.Read(reinterpret_cast<uint8_t *>(transferBuffer), std::min<size_t>(messageHeaderIn.hdr.dataBufferAvailable, MaxDataLength));
 				messageHeaderIn.hdr.param32 = hspi.transfer32(amount);
 				hspi.transferDwords(transferBuffer, nullptr, NumDwords(amount));
 			}
@@ -577,7 +575,7 @@ void ProcessRequest()
 			{
 				Connection& conn = Connection::Get(messageHeaderIn.hdr.socketNumber);
 				const size_t requestedlength = messageHeaderIn.hdr.dataLength;
-				const size_t amount = std::min<size_t>(conn.CanWrite(), requestedlength);
+				const size_t amount = std::min<size_t>(conn.CanWrite(), std::min<size_t>(requestedlength, MaxDataLength));
 				const bool closeAfterSending = amount == requestedlength && (messageHeaderIn.hdr.flags & MessageHeaderSamToEsp::FlagCloseAfterWrite) != 0;
 				const bool push = amount == requestedlength && (messageHeaderIn.hdr.flags & MessageHeaderSamToEsp::FlagPush) != 0;
 				messageHeaderIn.hdr.param32 = hspi.transfer32(amount);

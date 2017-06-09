@@ -24,7 +24,7 @@
 							<tool id="cdt.managedbuild.tool.gnu.cross.c.compiler.2083206230" name="Cross GCC Compiler" superClass="cdt.managedbuild.tool.gnu.cross.c.compiler">
 								<option defaultValue="gnu.c.optimization.level.most" id="gnu.c.compiler.option.optimization.level.167077255" name="Optimization Level" superClass="gnu.c.compiler.option.optimization.level" useByScannerDiscovery="false" valueType="enumerated"/>
 								<option id="gnu.c.compiler.option.debugging.level.1993215946" name="Debug Level" superClass="gnu.c.compiler.option.debugging.level" useByScannerDiscovery="false" value="gnu.c.debugging.level.none" valueType="enumerated"/>
-								<option id="gnu.c.compiler.option.dialect.std.937507662" name="Language standard" superClass="gnu.c.compiler.option.dialect.std" useByScannerDiscovery="true" value="gnu.c.compiler.dialect.default" valueType="enumerated"/>
+								<option id="gnu.c.compiler.option.dialect.std.1591419358" name="Language standard" superClass="gnu.c.compiler.option.dialect.std" useByScannerDiscovery="true" value="gnu.c.compiler.dialect.default" valueType="enumerated"/>
 								<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.275991149" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
 							</tool>
 							<tool id="cdt.managedbuild.tool.gnu.cross.cpp.compiler.1350524144" name="Cross G++ Compiler" superClass="cdt.managedbuild.tool.gnu.cross.cpp.compiler">
@@ -50,11 +50,9 @@
 									<listOptionValue builtIn="false" value="ARDUINO=10606"/>
 								</option>
 								<option id="gnu.cpp.compiler.option.dialect.std.932674279" name="Language standard" superClass="gnu.cpp.compiler.option.dialect.std" useByScannerDiscovery="true" value="gnu.cpp.compiler.dialect.default" valueType="enumerated"/>
-								<option id="gnu.cpp.compiler.option.preprocessor.undef.1616851023" name="Undefined symbols (-U)" superClass="gnu.cpp.compiler.option.preprocessor.undef" useByScannerDiscovery="false" valueType="undefDefinedSymbols">
-									<listOptionValue builtIn="false" value="__STRICT_ANSI__"/>
-								</option>
+								<option id="gnu.cpp.compiler.option.preprocessor.undef.1616851023" name="Undefined symbols (-U)" superClass="gnu.cpp.compiler.option.preprocessor.undef" useByScannerDiscovery="false" valueType="undefDefinedSymbols"/>
 								<option id="gnu.cpp.compiler.option.other.other.821524518" name="Other flags" superClass="gnu.cpp.compiler.option.other.other" useByScannerDiscovery="false" value="-c -g -mlongcalls -mtext-section-literals -fno-exceptions -fno-rtti -falign-functions=4 -ffunction-sections -fdata-sections" valueType="string"/>
-								<option id="gnu.cpp.compiler.option.dialect.flags.1604380029" name="Other dialect flags" superClass="gnu.cpp.compiler.option.dialect.flags" useByScannerDiscovery="true" value="-std=gnu++11" valueType="string"/>
+								<option id="gnu.cpp.compiler.option.dialect.flags.1661746140" name="Other dialect flags" superClass="gnu.cpp.compiler.option.dialect.flags" useByScannerDiscovery="true" value="-std=gnu++11" valueType="string"/>
 								<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.1830564814" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
 							</tool>
 							<tool id="cdt.managedbuild.tool.gnu.cross.c.linker.1625496096" name="Cross GCC Linker" superClass="cdt.managedbuild.tool.gnu.cross.c.linker"/>
@@ -138,7 +136,6 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/CoreESP8266/libraries/ESP8266mDNS}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/CoreESP8266/libraries/DNSServer/src}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/CoreESP8266/libraries/EEPROM}&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/CoreESP8266/libraries/ESP8266SSDP}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/CoreESP8266/sdk/lwip/include}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/CoreESP8266/sdk/include}&quot;"/>
 								</option>
@@ -152,11 +149,11 @@
 									<listOptionValue builtIn="false" value="ARDUINO=10606"/>
 									<listOptionValue builtIn="false" value="DEBUG"/>
 								</option>
-								<option id="gnu.cpp.compiler.option.dialect.std.153951557" name="Language standard" superClass="gnu.cpp.compiler.option.dialect.std" useByScannerDiscovery="true" value="gnu.cpp.compiler.dialect.default" valueType="enumerated"/>
-								<option id="gnu.cpp.compiler.option.preprocessor.undef.776726922" name="Undefined symbols (-U)" superClass="gnu.cpp.compiler.option.preprocessor.undef" useByScannerDiscovery="false" valueType="undefDefinedSymbols"/>
-								<option id="gnu.cpp.compiler.option.other.other.1843673813" name="Other flags" superClass="gnu.cpp.compiler.option.other.other" useByScannerDiscovery="false" value="-c -g -mlongcalls -mtext-section-literals -fno-exceptions -fno-rtti -falign-functions=4 -ffunction-sections -fdata-sections" valueType="string"/>
-								<option id="gnu.cpp.compiler.option.dialect.flags.2058146676" name="Other dialect flags" superClass="gnu.cpp.compiler.option.dialect.flags" useByScannerDiscovery="true" value="-std=gnu++11" valueType="string"/>
-								<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.1356212796" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
+								<option id="gnu.cpp.compiler.option.dialect.std.424449543" name="Language standard" superClass="gnu.cpp.compiler.option.dialect.std" useByScannerDiscovery="true" value="gnu.cpp.compiler.dialect.default" valueType="enumerated"/>
+								<option id="gnu.cpp.compiler.option.preprocessor.undef.545199318" name="Undefined symbols (-U)" superClass="gnu.cpp.compiler.option.preprocessor.undef" useByScannerDiscovery="false" valueType="undefDefinedSymbols"/>
+								<option id="gnu.cpp.compiler.option.other.other.1854050720" name="Other flags" superClass="gnu.cpp.compiler.option.other.other" useByScannerDiscovery="false" value="-c -g -mlongcalls -mtext-section-literals -fno-exceptions -fno-rtti -falign-functions=4 -ffunction-sections -fdata-sections" valueType="string"/>
+								<option id="gnu.cpp.compiler.option.dialect.flags.1077455469" superClass="gnu.cpp.compiler.option.dialect.flags" useByScannerDiscovery="true" value="-std=gnu++11" valueType="string"/>
+								<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.1699540131" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
 							</tool>
 							<tool id="cdt.managedbuild.tool.gnu.cross.c.linker.1564809661" name="Cross GCC Linker" superClass="cdt.managedbuild.tool.gnu.cross.c.linker"/>
 							<tool commandLinePattern="${COMMAND} ${FLAGS} ${OUTPUT_FLAG} ${OUTPUT_PREFIX}${OUTPUT} -Wl,--start-group ${INPUTS} -Wl,--end-group" id="cdt.managedbuild.tool.gnu.cross.cpp.linker.363106299" name="Cross G++ Linker" superClass="cdt.managedbuild.tool.gnu.cross.cpp.linker">

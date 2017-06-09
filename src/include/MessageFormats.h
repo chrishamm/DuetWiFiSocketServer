@@ -25,7 +25,7 @@ const size_t MaxConnections = 8;				// the number of simultaneous connections we
 
 static_assert(MaxDataLength % sizeof(uint32_t) == 0, "MaxDatalength must be a whole number of dwords");
 
-const uint8_t MyFormatVersion = 0x3D;
+const uint8_t MyFormatVersion = 0x3E;
 const uint8_t InvalidFormatVersion = 0;
 
 const uint32_t AnyIp = 0;
@@ -89,6 +89,7 @@ struct ListenOrConnectData
 {
 	uint32_t remoteIp;			// IP address to listen for, 0 means any
 	uint8_t protocol;			// Protocol for this connection (0 = HTTP, 1 = FTP, 2 = TELNET, 3 = FTP-DATA) - also see NetworkDefs.h
+	uint8_t dummy;				// To ensure alignment is the same on ESP8266 and SAM
 	uint16_t port;				// port number to listen on
 	uint16_t maxConnections;	// maximum number of connections to accept if listening
 };

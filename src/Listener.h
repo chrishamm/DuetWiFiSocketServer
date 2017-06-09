@@ -40,6 +40,7 @@ private:
 	uint16_t port;
 	uint8_t protocol;
 	uint16_t maxConnections;
+	uint8_t protocol;
 
 	static Listener *activeList;
 	static Listener *freeList;

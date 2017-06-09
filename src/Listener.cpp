@@ -31,7 +31,8 @@ Listener *Listener::activeList = nullptr;
 Listener *Listener::freeList = nullptr;
 
 // Member functions
-Listener::Listener() : next(nullptr), listeningPcb(nullptr), ip(0), port(0), protocol(0), maxConnections(0)
+Listener::Listener()
+	: next(nullptr), listeningPcb(nullptr), ip(0), port(0), maxConnections(0), protocol(0)
 {
 }
 
