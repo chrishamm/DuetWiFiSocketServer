@@ -38,7 +38,6 @@ private:
 	tcp_pcb *listeningPcb;
 	uint32_t ip;
 	uint16_t port;
-	uint8_t protocol;
 	uint16_t maxConnections;
 	uint8_t protocol;
 

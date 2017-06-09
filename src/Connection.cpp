@@ -57,6 +57,7 @@ void Connection::GetStatus(ConnStatusResponse& resp) const
 	resp.socketNumber = number;
 	resp.state = state;
 	resp.bytesAvailable = CanRead();
+	resp.writeBufferSpace = CanWrite();
 	resp.localPort = localPort;
 	resp.remotePort = remotePort;
 	resp.remoteIp = remoteIp;

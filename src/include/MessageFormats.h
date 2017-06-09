@@ -187,6 +187,7 @@ struct ConnStatusResponse
 	uint16_t remotePort;
 	uint32_t remoteIp;
 	uint16_t bytesAvailable;
+	uint16_t writeBufferSpace;
 	uint16_t connectedSockets;			// bitmap of sockets that are in state 'connected'
 	uint16_t otherEndClosedSockets;		// bitmap of sockets that are in state 'otherEndClosed'
 };
