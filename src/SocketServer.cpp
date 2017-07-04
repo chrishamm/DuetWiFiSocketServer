@@ -57,15 +57,18 @@ static uint32_t connectStartTime;
 
 static uint32_t transferBuffer[NumDwords(MaxDataLength + 1)];
 
+
+
 // Look up a SSID in our remembered network list, return true if found
-// This always overwrites ssidData
 bool RetrieveSsidData(const char *ssid, WirelessConfigurationData& ssidData, size_t *index = nullptr)
 {
+	WirelessConfigurationData dummy;
 	for (size_t i = 1; i <= MaxRememberedNetworks; ++i)
 	{
-		EEPROM.get(i * sizeof(WirelessConfigurationData), ssidData);
-		if (strncmp(ssid, ssidData.ssid, sizeof(ssidData.ssid)) == 0)
+		EEPROM.get(i * sizeof(WirelessConfigurationData), dummy);
+		if (strncmp(ssid, dummy.ssid, sizeof(dummy.ssid)) == 0)
 		{
+			memcpy(&ssidData, &dummy, sizeof(WirelessConfigurationData));
 			if (index != nullptr)
 			{
 				*index = i;
@@ -73,7 +76,6 @@ bool RetrieveSsidData(const char *ssid, WirelessConfigurationData& ssidData, siz
 			return true;
 		}
 	}
-	memset(&ssidData, 0, sizeof(ssidData));			// clear the last password out of RAM for security
 	return false;
 }
 
@@ -138,7 +140,7 @@ void ConnectPoll()
 	{
 		// The Arduino WiFi.status() call is fairly useless here because it discards too much information, so use the SDK API call instead
 		const char *error = nullptr;
-		const station_status_t status = wifi_station_get_connect_status();
+		const unsigned int status = wifi_station_get_connect_status();
 		switch (status)
 		{
 		case STATION_IDLE:
@@ -190,40 +192,31 @@ void ConnectPoll()
 	}
 }
 
-void StartClient(const char * array ssid)
+void StartClient()
 {
-	WirelessConfigurationData ssidData;
-
-	if (ssid == nullptr || ssid[0] == 0)
+	// Auto scan for strongest known network, then try to connect to it
+	int8_t num_ssids = WiFi.scanNetworks(false, true);
+	if (num_ssids < 0)
 	{
-		// Auto scan for strongest known network, then try to connect to it
-		int8_t num_ssids = WiFi.scanNetworks(false, true);
-		if (num_ssids < 0)
-		{
-			lastError = "network scan failed";
-			currentState = WiFiState::idle;
-			return;
-		}
+		lastError = "network scan failed";
+		currentState = WiFiState::idle;
+		return;
+	}
 
-		// Find the strongest network that we know about
-		int8_t strongestNetwork = -1;
-		for (int8_t i = 0; i < num_ssids; ++i)
+	// Find the strongest network that we know about
+	WirelessConfigurationData ssidData;
+	int8_t strongestNetwork = -1;
+	for (int8_t i = 0; i < num_ssids; ++i)
+	{
+		if ((strongestNetwork < 0 || WiFi.RSSI(i) > WiFi.RSSI(strongestNetwork)) && RetrieveSsidData(WiFi.SSID(i).c_str(), ssidData))
 		{
-			if ((strongestNetwork < 0 || WiFi.RSSI(i) > WiFi.RSSI(strongestNetwork)) && RetrieveSsidData(WiFi.SSID(i).c_str(), ssidData))
-			{
-				strongestNetwork = i;
-			}
-		}
-		if (strongestNetwork < 0)
-		{
-			lastError = "no known networks found";
-			currentState = WiFiState::idle;
-			return;
+			strongestNetwork = i;
 		}
 	}
-	else if (!RetrieveSsidData(ssid, ssidData))
+
+	if (strongestNetwork < 0)
 	{
-		lastError = "no data found for requested SSID";
+		lastError = "no known networks found";
 		currentState = WiFiState::idle;
 		return;
 	}
@@ -710,7 +703,7 @@ void ProcessRequest()
 		switch (messageHeaderIn.hdr.command)
 		{
 		case NetworkCommand::networkStartClient:			// connect to an access point
-			StartClient(nullptr);
+			StartClient();
 			break;
 
 		case NetworkCommand::networkStartAccessPoint:		// run as an access point
