@@ -129,7 +129,13 @@ pre(currentState == NetworkState::idle)
 	wifi_station_set_hostname(webHostName);     				// must do this before calling WiFi.begin()
 	WiFi.setAutoConnect(false);
 	WiFi.setAutoReconnect(true);
+#if NO_WIFI_SLEEP
+	wifi_set_sleep_type(NONE_SLEEP_T);
+#else
+	wifi_set_sleep_type(MODEM_SLEEP_T);
+#endif
 	WiFi.config(IPAddress(apData.ip), IPAddress(apData.gateway), IPAddress(apData.netmask), IPAddress(), IPAddress());
+	debugPrintf("Trying to connect to ssid \"%s\" with password \"%s\"\n", apData.ssid, apData.password);
 	WiFi.begin(apData.ssid, apData.password);
 
 	if (isRetry)
@@ -187,8 +193,13 @@ void ConnectPoll()
 			{
 				lastError = "Reconnect succeeded";
 			}
+			else
+			{
+				MDNS.begin(webHostName);
+			}
 			currentState = WiFiState::connected;
-			debugPrintln("Connected to AP");
+			debugPrint("Connected to AP\n");
+
 			break;
 
 		default:
@@ -203,7 +214,7 @@ void ConnectPoll()
 			SafeStrncat(lastConnectError, currentSsid, ARRAY_SIZE(lastConnectError));
 			lastError = lastConnectError;
 			connectErrorChanged = true;
-			debugPrintln("failed to connect to AP");
+			debugPrint("Failed to connect to AP\n");
 
 			if (!retry)
 			{
@@ -256,7 +267,7 @@ void ConnectPoll()
 			SafeStrncat(lastConnectError, error, ARRAY_SIZE(lastConnectError));
 			lastError = lastConnectError;
 			connectErrorChanged = true;
-			debugPrintln("Lost connection to AP");
+			debugPrint("Lost connection to AP\n");
 			break;
 		}
 		break;
@@ -391,29 +402,32 @@ void StartAccessPoint()
 		}
 		if (ok)
 		{
+			debugPrintf("Starting AP %s with password \"%s\"\n", currentSsid, apData.password);
 			ok = WiFi.softAP(currentSsid, apData.password, (apData.channel == 0) ? DefaultWiFiChannel : apData.channel);
 		}
 		if (ok)
 		{
+			debugPrint("AP started\n");
 			dns.setErrorReplyCode(DNSReplyCode::NoError);
 			if (!dns.start(53, "*", apData.ip))
 			{
 				lastError = "Failed to start DNS";
+				debugPrintf("%s\n", lastError);
 			}
-			debugPrintln("AP started");
 			SafeStrncpy(currentSsid, apData.ssid, ARRAY_SIZE(currentSsid));
-			delay(100);		// trying this to see if it helps
 			currentState = WiFiState::runningAsAccessPoint;
 		}
 		else
 		{
 			lastError = "Failed to start access point";
+			debugPrintf("%s\n", lastError);
 			currentState = WiFiState::idle;
 		}
 	}
 	else
 	{
 		lastError = "invalid access point configuration";
+		debugPrintf("%s\n", lastError);
 		currentState = WiFiState::idle;
 	}
 }
@@ -645,18 +659,44 @@ void ICACHE_RAM_ATTR ProcessRequest()
 			}
 			break;
 
-		case NetworkCommand::networkListSsids:				// list the access points we know about, plus our own access point details
+		case NetworkCommand::networkRetrieveSsidData:	// list the access points we know about, including our own access point details
+			if (dataBufferAvailable < ReducedWirelessConfigurationDataSize)
+			{
+				SendResponse(ResponseBufferTooSmall);
+			}
+			else
+			{
+				char *p = reinterpret_cast<char*>(transferBuffer);
+				for (size_t i = 0; i <= MaxRememberedNetworks && (i + 1) * ReducedWirelessConfigurationDataSize <= dataBufferAvailable; ++i)
+				{
+					const WirelessConfigurationData * const tempData = EEPROM.getPtr<WirelessConfigurationData>(i * sizeof(WirelessConfigurationData));
+					if (tempData->ssid[0] != 0xFF)
+					{
+						memcpy(p, tempData, ReducedWirelessConfigurationDataSize);
+						p += ReducedWirelessConfigurationDataSize;
+					}
+					else if (i == 0)
+					{
+						memset(p, 0, ReducedWirelessConfigurationDataSize);
+						p += ReducedWirelessConfigurationDataSize;
+					}
+				}
+				const size_t numBytes = p - reinterpret_cast<char*>(transferBuffer);
+				SendResponse(numBytes);
+			}
+			break;
+
+		case NetworkCommand::networkListSsids_deprecated:	// list the access points we know about, plus our own access point details
 			{
 				char *p = reinterpret_cast<char*>(transferBuffer);
 				for (size_t i = 0; i <= MaxRememberedNetworks; ++i)
 				{
-					WirelessConfigurationData tempData;
-					EEPROM.get(i * sizeof(WirelessConfigurationData), tempData);
-					if (tempData.ssid[0] != 0xFF)
+					const WirelessConfigurationData * const tempData = EEPROM.getPtr<WirelessConfigurationData>(i * sizeof(WirelessConfigurationData));
+					if (tempData->ssid[0] != 0xFF)
 					{
-						for (size_t j = 0; j < SsidLength && tempData.ssid[j] != 0; ++j)
+						for (size_t j = 0; j < SsidLength && tempData->ssid[j] != 0; ++j)
 						{
-							*p++ = tempData.ssid[j];
+							*p++ = tempData->ssid[j];
 						}
 						*p++ = '\n';
 					}
@@ -686,9 +726,6 @@ void ICACHE_RAM_ATTR ProcessRequest()
 				hspi.transferDwords(nullptr, transferBuffer, NumDwords(HostNameLength));
 				memcpy(webHostName, transferBuffer, HostNameLength);
 				webHostName[HostNameLength] = 0;			// ensure null terminator
-
-				// The following can be called multiple times
-				MDNS.begin(webHostName);
 			}
 			else
 			{
@@ -727,13 +764,12 @@ void ICACHE_RAM_ATTR ProcessRequest()
 				const bool ok = Listener::Listen(lcData.remoteIp, lcData.port, lcData.protocol, lcData.maxConnections);
 				if (ok)
 				{
-					debugPrint("Listening on port ");
-					debugPrintln(lcData.port);
+					debugPrintf("Listening on port %u\n", lcData.port);
 				}
 				else
 				{
 					lastError = "Listen failed";
-					debugPrintln("Listen failed");
+					debugPrint("Listen failed\n");
 				}
 				RebuildServices();
 			}
@@ -817,8 +853,7 @@ void ICACHE_RAM_ATTR ProcessRequest()
 
 		case NetworkCommand::diagnostics:				// print some debug info over the UART line
 			stats_display();
-			debugPrint("SDK Version: ");
-			debugPrintln(system_get_sdk_version());
+			debugPrintf("SDK Version: %s\n", system_get_sdk_version());
 			SendResponse(ResponseEmpty);
 			break;
 
@@ -862,10 +897,13 @@ void ICACHE_RAM_ATTR ProcessRequest()
 			{
 			case WiFiState::connected:
 			case WiFiState::connecting:
+			case WiFiState::reconnecting:
+				MDNS.deleteServices();
 				WiFi.disconnect(true);
 				break;
 
 			case WiFiState::runningAsAccessPoint:
+				dns.stop();
 				WiFi.softAPdisconnect(true);
 				break;
 
@@ -890,10 +928,8 @@ void ICACHE_RAM_ATTR ProcessRequest()
 void setup()
 {
 	// Enable serial port for debugging
-	Serial.begin(115200);
-#ifdef DEBUG
+	Serial.begin(WiFiBaudRate);
 	Serial.setDebugOutput(true);
-#endif
 
 	WiFi.mode(WIFI_OFF);
 	WiFi.persistent(false);
@@ -920,7 +956,7 @@ void setup()
     Listener::Init();
     netbios_init();
     lastError = nullptr;
-    debugPrintln("Init completed");
+    debugPrint("Init completed\n");
 	digitalWrite(EspReqTransferPin, HIGH);				// tell the SAM we are ready to receive a command
 	lastStatusReportTime = millis();
 }
@@ -952,8 +988,10 @@ void loop()
 	Connection::PollOne();
 	Connection::ReportConnections();
 
-	// Let the WiFi subsystem get on with its stuff
-	//yield();
+	if (currentState == WiFiState::runningAsAccessPoint)
+	{
+		dns.processNextRequest();
+	}
 }
 
 // End
