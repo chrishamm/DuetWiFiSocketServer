@@ -3,23 +3,11 @@
 #ifndef CONFIG_H_INCLUDED
 #define CONFIG_H_INCLUDED
 
-#define NO_WIFI_SLEEP	0
+#define DEBUG	// Uncomment this to print debug info over the UART line
 
-#define VERSION_MAIN	"1.20-b10 (ch)"
+const char* const firmwareVersion = "1.19-RTOS";
+//const char* const softApName = "DuetWiFi";
 
-#if NO_WIFI_SLEEP
-#define VERSION_SLEEP	"-nosleep"
-#else
-#define VERSION_SLEEP	""
-#endif
-
-#ifdef DEBUG
-#define VERSION_DEBUG	"-D"
-#else
-#define VERSION_DEBUG	""
-#endif
-
-const char* const firmwareVersion = VERSION_MAIN VERSION_DEBUG VERSION_SLEEP;
 
 // Define the maximum length (bytes) of file upload data per SPI packet. Use a multiple of the SD card file or cluster size for efficiency.
 // ************ This must be kept in step with the corresponding value in RepRapFirmwareWiFi *************
@@ -33,17 +21,14 @@ const uint32_t spiFrequency = 27000000;     // This will get rounded down to 80M
 const int SamSSPin = 15;          // GPIO15, output to SAM, SS pin for SPI transfer
 const int EspReqTransferPin = 0;  // GPIO0, output, indicates to the SAM that we want to send something
 const int SamTfrReadyPin = 4;     // GPIO4, input, indicates that SAM is ready to execute an SPI transaction
-
-const uint8_t Backlog = 8;
+const int LedPin = 16;			  // GPIO16, output
 
 #define ARRAY_SIZE(_x) (sizeof(_x)/sizeof((_x)[0]))
 
 #ifdef DEBUG
-#define debugPrint(_str)		ets_printf("%s", _str)
-#define debugPrintf(_format, ...)	ets_printf(_format, __VA_ARGS__)
+#define debugPrintf(fmt, ...) printf(fmt, ## __VA_ARGS__)
 #else
-#define debugPrint(_format)		do {} while(false)
-#define debugPrintf(_format, ...)	do {} while(false)
+#define debugPrintf(fmt, ...) do {} while (false)
 #endif
 
 #endif

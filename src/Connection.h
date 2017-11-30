@@ -12,7 +12,10 @@
 
 #include <cstdint>
 #include <cstddef>
-#include "include/MessageFormats.h"			// for ConnState
+#include "../include/MessageFormats.h"		// for ConnState
+
+#include <FreeRTOS.h>
+#include <timers.h>
 
 // If we #include "tcp.h" here we get clashes between two different ip_addr.h files, so don't do that here
 class tcp_pcb;
@@ -68,13 +71,13 @@ private:
 	uint16_t remotePort;
 
 	uint32_t remoteIp;
-	uint32_t writeTimer;
-	uint32_t closeTimer;
+	TickType_t writeTimer;
+	TickType_t closeTimer;
 	volatile size_t unAcked;	// how much data we have sent but hasn't been acknowledged
 	size_t readIndex;			// how much data we have already read from the current pbuf
 	size_t alreadyRead;			// how much data we read from previous pbufs and didn't tell LWIP about yet
-	tcp_pcb *ownPcb;			// the pcb that corresponds to this connection
-	pbuf *pb;					// the buffers holding data we have received that has not yet been taken
+	tcp_pcb *ownPcb;
+	pbuf *pb;
 
 	static Connection *connectionList[MaxConnections];
 	static size_t nextConnectionToPoll;

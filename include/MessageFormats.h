@@ -55,7 +55,7 @@ enum class NetworkCommand : uint8_t
 	networkGetStatus,			// get the network connection status
 	networkAddSsid,				// add to our known access point list
 	networkDeleteSsid,			// delete a network from our access point list
-	networkListSsids_deprecated, // list the access points we know about - DEPRECATED
+	networkListSsids,			// list the access points we know about
 	networkConfigureAccessPoint, // configure our own access point details
 	networkStartClient,			// connect to an access point
 	networkStartAccessPoint,	// run as an access point
@@ -64,8 +64,7 @@ enum class NetworkCommand : uint8_t
 	networkSetHostName,			// set the host name
 	networkGetLastError,		// get the result of the last deferred command we sent
 
-	diagnostics,				// print LwIP stats and possibly more values over the UART line
-	networkRetrieveSsidData		// retrieve all the SSID data we have except the passwords
+	diagnostics					// print LwIP stats and possibly more values over the UART line
 };
 
 // Message header sent from the SAM to the ESP
@@ -108,8 +107,6 @@ struct WirelessConfigurationData
 	char password[PasswordLength];	// the WiFi password
 };
 
-const size_t ReducedWirelessConfigurationDataSize = offsetof(WirelessConfigurationData, password);
-
 struct NetworkStartClientData
 {
 	char ssid[SsidLength];			// name of the SSID to connect to, or empty string for auto
@@ -122,9 +119,7 @@ enum class WiFiState : uint8_t
 	idle = 1,						// neither connected nor running as an access point
 	runningAsAccessPoint = 2,
 	connecting = 3,
-	connected = 4,
-	autoReconnecting = 5,
-	reconnecting = 6
+	connected = 4
 };
 
 // Message header sent from the ESP to the SAM
@@ -149,10 +144,7 @@ struct NetworkStatusResponse
 	uint32_t freeHeap;				// free heap memory in bytes
 	uint32_t resetReason;
 	uint32_t flashSize;
-	int8_t rssi;					// received signal strength (if operating as a wifi client)
-	uint8_t numClients;				// the number of connected clients (if operating as an AP)
-	uint8_t sleepMode;				// the wifi sleep mode
-	uint8_t spare;					// unused, set to 0 for future compatibility
+	int32_t rssi;					// received signal strength (only if operating as a wifi client)
 	uint16_t vcc;					// ESP Vcc voltage according to its ADC
     uint8_t macAddress[6];			// MAC address
 	char versionText[16];			// WiFi firmware version
@@ -164,10 +156,11 @@ struct NetworkStatusResponse
 //		4 bytes of reset reason
 //		4 bytes of flash chip size
 //		4 bytes of RSSI (added for info version 2)
+//		2 bytes of operating state (1 = client, 2 = access point)
 //		2 bytes of ESP8266 Vcc according to its ADC
 //		16 chars of WiFi firmware version
-//		32 chars of ssid (either ssid we are connected to or our own AP name), null terminated
 //		64 chars of host name, null terminated
+//		32 chars of ssid (either ssid we are connected to or our own AP name), null terminated
 
 // State of a connection
 // The table of state names in Connection.cpp must be kept in step with this
@@ -215,8 +208,6 @@ const int32_t ResponseBadParameter = -11;
 const int32_t ResponseUnknownError = -12;
 
 const size_t MaxRememberedNetworks = 20;
-static_assert((MaxRememberedNetworks + 1) * ReducedWirelessConfigurationDataSize <= MaxDataLength, "Too many remembered networks");
-
-const unsigned int WiFiBaudRate = 74880;		// this is the default baud rate for the ESP8266
+static_assert((MaxRememberedNetworks * (SsidLength + 1)) + 1 <= MaxDataLength, "Too many remembered networks");
 
 #endif /* SRC_MESSAGEFORMATS_H_ */

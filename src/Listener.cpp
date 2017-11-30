@@ -7,11 +7,11 @@
 
 #include "Listener.h"
 #include "Connection.h"
-#include "Config.h"
 
 // C interface functions
 extern "C"
 {
+	#include "lwip/api.h"
 	#include "lwip/tcp.h"
 
 	static err_t conn_accept(void *arg, tcp_pcb *pcb, err_t err)
@@ -53,7 +53,6 @@ err_t Listener::Accept(tcp_pcb *pcb)
 		}
 	}
 	tcp_abort(pcb);
-	debugPrint("Refused conn\n");
 	return ERR_ABRT;
 }
 
@@ -110,7 +109,7 @@ void Listener::Stop()
 		return false;
 	}
 
-	ip_addr tempIp;
+	ip_addr_t tempIp;
 	tempIp.addr = ip;
 	tempPcb->so_options |= SOF_REUSEADDR;			// not sure we need this, but the Arduino HTTP server does it
 	if (tcp_bind(tempPcb, &tempIp, port) != ERR_OK)
@@ -119,7 +118,7 @@ void Listener::Stop()
 		Release(p);
 		return false;
 	}
-	p->listeningPcb = tcp_listen_with_backlog(tempPcb, Backlog);
+	p->listeningPcb = tcp_listen(tempPcb);
 	if (p->listeningPcb == nullptr)
 	{
 		tcp_close(tempPcb);

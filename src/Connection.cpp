@@ -1,14 +1,18 @@
 /*
- * Socket.cpp
+ * Connection.cpp
  *
  *  Created on: 11 Apr 2017
- *      Author: David
+ *      Authors: David and Christian
  */
 
 #include "Connection.h"
-#include "algorithm"			// for std::min
-#include "Arduino.h"			// for millis
 #include "Config.h"
+
+#include <FreeRTOS.h>
+#include <timers.h>
+
+#include <algorithm>		// for min
+#include <cstring>			// for memcpy
 
 const uint32_t MaxWriteTime = 2000;		// how long we wait for a write operation to complete before it is cancelled
 const uint32_t MaxAckTime = 4000;		// how long we wait for a connection to acknowledge the remaining data before it is closed
@@ -66,34 +70,48 @@ void Connection::GetStatus(ConnStatusResponse& resp) const
 // Close the connection gracefully
 void Connection::Close()
 {
+	if (ownPcb == nullptr)
+	{
+		// should never get here
+		return;
+	}
+
 	switch(state)
 	{
 	case ConnState::connected:						// both ends are still connected
-		if (unAcked != 0)
-		{
-			closeTimer = millis();
-			SetState(ConnState::closePending);		// wait for the remaining data to be sent before closing
-			break;
-		}
-		// no break
-	case ConnState::otherEndClosed:					// the other end has already closed the connection
-	case ConnState::closeReady:						// the other end has closed and we were already closePending
-	default:										// should not happen
-		if (ownPcb != nullptr)
+		if (unAcked == 0)
 		{
 			tcp_recv(ownPcb, nullptr);
 			tcp_sent(ownPcb, nullptr);
 			tcp_err(ownPcb, nullptr);
 			tcp_close(ownPcb);
 			ownPcb = nullptr;
+			SetState(ConnState::free);
 		}
-		unAcked = 0;
-		FreePbuf();
+		else
+		{
+			closeTimer = xTaskGetTickCount();
+			SetState(ConnState::closePending);
+		}
+		break;
+
+	case ConnState::otherEndClosed:					// the other end has already closed the connection
+	case ConnState::closeReady:						// the other end has closed and we were already closePending
+		tcp_recv(ownPcb, nullptr);
+		tcp_sent(ownPcb, nullptr);
+		tcp_err(ownPcb, nullptr);
+		tcp_close(ownPcb);
+		ownPcb = nullptr;
 		SetState(ConnState::free);
 		break;
 
-	case ConnState::closePending:					// we already asked to close
+	case ConnState::closePending:
 		// Should not happen, but if it does just let the close proceed when sending is complete or timeout
+		break;
+
+	default:
+		// should not happen
+		SetState(ConnState::free);
 		break;
 	}
 }
@@ -101,6 +119,7 @@ void Connection::Close()
 // Terminate the connection
 void Connection::Terminate()
 {
+	FreePbuf();
 	if (ownPcb != nullptr)
 	{
 		tcp_recv(ownPcb, nullptr);
@@ -109,8 +128,6 @@ void Connection::Terminate()
 		tcp_abort(ownPcb);
 		ownPcb = nullptr;
 	}
-	unAcked = 0;
-	FreePbuf();
 	SetState(ConnState::free);
 }
 
@@ -120,7 +137,7 @@ void Connection::Poll()
 	if (state == ConnState::connected)
 	{
 		// Are we still waiting for data to be written?
-		if (writeTimer > 0 && millis() - writeTimer >= MaxWriteTime)
+		if (writeTimer > 0 && (xTaskGetTickCount() - writeTimer) * portTICK_PERIOD_MS >= MaxWriteTime)
 		{
 			// Terminate it
 			Terminate();
@@ -139,7 +156,7 @@ void Connection::Poll()
 			// All data has been received, close this connection next time
 			SetState(ConnState::closeReady);
 		}
-		else if (millis() - closeTimer >= MaxAckTime)
+		else if ((xTaskGetTickCount() - closeTimer) * portTICK_PERIOD_MS >= MaxAckTime)
 		{
 			// The acknowledgment timer has expired, abort this connection
 			Terminate();
@@ -156,7 +173,7 @@ size_t Connection::Write(const uint8_t *data, size_t length, bool doPush, bool c
 		if (writeTimer == 0)
 		{
 			// No - there is no space left. Don't wait forever until there is any available
-			writeTimer = millis();
+			writeTimer = xTaskGetTickCount();
 		}
 		return 0;
 	}
@@ -185,7 +202,7 @@ size_t Connection::Write(const uint8_t *data, size_t length, bool doPush, bool c
 	// Close the connection again when we're done
 	if (closeAfterSending)
 	{
-		closeTimer = millis();
+		closeTimer = xTaskGetTickCount();
 		SetState(ConnState::closePending);
 	}
 	return length;
@@ -243,21 +260,29 @@ void Connection::Report()
 	// The following must be kept in the same order as the declarations in class ConnState
 	static const char* const connStateText[] =
 	{
-		"free",
-		"connecting",			// socket is trying to connect
-		"connected",			// socket is connected
-		"remoteClosed",		// the other end has closed the connection
+		" free",
+		" connecting",			// socket is trying to connect
+		" connected",			// socket is connected
+		" remoteClosed",		// the other end has closed the connection
 
-		"aborted",				// an error has occurred
-		"closePending",		// close this socket when sending is complete
-		"closeReady"			// about to be closed
+		" aborted",				// an error has occurred
+		" closePending",		// close this socket when sending is complete
+		" closeReady"			// about to be closed
 	};
 
 	const unsigned int st = (int)state;
-	debugPrintf(" %s", (st < ARRAY_SIZE(connStateText)) ? connStateText[st]: "unknown");
+	if (st < ARRAY_SIZE(connStateText))
+	{
+		debugPrintf(connStateText[st]);
+	}
+	else
+	{
+		debugPrintf(" unknown");
+	}
 	if (state != ConnState::free)
 	{
-		debugPrintf(" %u, %u, %u.%u.%u.%u", localPort, remotePort, remoteIp & 255, (remoteIp >> 8) & 255, (remoteIp >> 16) & 255, (remoteIp >> 24) & 255);
+		debugPrintf(" %u,%u,%u.%u.%u.%u", localPort, remotePort,
+				remoteIp & 255, (remoteIp >> 8) & 255, (remoteIp >> 16) & 255, (remoteIp >> 24) & 255);
 	}
 #endif
 }
@@ -300,7 +325,7 @@ err_t Connection::ConnRecv(pbuf *p, err_t err)
 		}
 		else if (state == ConnState::closePending)
 		{
-			// We could perhaps call tcp_close here, but perhaps better to do it outside the callback
+			// We could perhaps call tcp_close here, but better to do it outside the ISR
 			state = ConnState::closeReady;
 		}
 	}
@@ -313,7 +338,6 @@ err_t Connection::ConnRecv(pbuf *p, err_t err)
 		pb = p;
 		readIndex = alreadyRead = 0;
 	}
-	debugPrint("Packet rcvd\n");
 	return ERR_OK;
 }
 
@@ -419,12 +443,12 @@ void Connection::FreePbuf()
 #ifdef DEBUG
 	if (connectionsChanged)
 	{
-		debugPrint("Connections:");
+		debugPrintf("Connections:");
 		for (size_t i = 0; i < MaxConnections; ++i)
 		{
 			connectionList[i]->Report();
 		}
-		debugPrint("\n");
+		debugPrintf("\n");
 		connectionsChanged = false;
 	}
 #endif
